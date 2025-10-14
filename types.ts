@@ -78,6 +78,15 @@ export interface Order {
   customerName?: string;
 }
 
+export interface HeldOrder {
+  tableNumber: number;
+  area: 'Bar' | 'VIP' | 'Barra';
+  waiterId: string;
+  items: OrderItem[];
+  notes?: string;
+  timestamp: Date;
+}
+
 export interface Transaction {
     id: string;
     type: 'sale' | 'manual';

@@ -1,4 +1,3 @@
-// Fix: Created PaymentModal component to resolve module error.
 import React, { useState, useEffect, useMemo } from 'react';
 import { Order, Language, OrderItem, PaymentDetails } from '../types';
 import { formatCurrency } from '../utils/helpers';
@@ -17,26 +16,35 @@ interface PaymentModalProps {
 }
 
 const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, order, onConfirmPayment, onPrint, t, lang }) => {
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'split'>('cash');
   const [amountReceived, setAmountReceived] = useState('');
   const [change, setChange] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [showSummary, setShowSummary] = useState(false);
-  const [isDiscountNumpadOpen, setDiscountNumpadOpen] = useState(false);
-  const [isAmountReceivedNumpadOpen, setAmountReceivedNumpadOpen] = useState(false);
+  
+  const [cashAmountForSplit, setCashAmountForSplit] = useState(0);
+  const [cardAmountForSplit, setCardAmountForSplit] = useState(0);
 
+  const [numpadConfig, setNumpadConfig] = useState<{
+    isOpen: boolean;
+    target: 'discount' | 'received' | 'splitCash' | 'splitCard' | null;
+    initialValue: number;
+    title: string;
+    allowDecimal: boolean;
+  }>({ isOpen: false, target: null, initialValue: 0, title: '', allowDecimal: true });
   
   const finalTotal = order ? Math.max(0, order.total - discountAmount) : 0;
   const finalTax = finalTotal - (finalTotal / (1 + TAX_RATE));
-
 
   useEffect(() => {
     if (order) {
         setDiscountAmount(0);
         setShowSummary(false);
         setPaymentMethod('cash');
+        setCashAmountForSplit(0);
+        setCardAmountForSplit(0);
     }
-  },[order]);
+  },[order, isOpen]);
 
   useEffect(() => {
     if (order) {
@@ -64,12 +72,42 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, order, onC
     let details: PaymentDetails;
     if (paymentMethod === 'cash') {
       details = { method: 'cash', amount: finalTotal };
-    } else { // card
+    } else if (paymentMethod === 'card') {
       details = { method: 'card', amount: finalTotal };
+    } else { // split
+      details = { method: 'split', cashAmount: cashAmountForSplit, cardAmount: cardAmountForSplit };
     }
     onConfirmPayment(order.id, details, finalTotal, finalTax);
   };
   
+  const openNumpad = (
+    target: 'discount' | 'received' | 'splitCash' | 'splitCard',
+    title: string,
+    initialValue: number
+  ) => {
+    setNumpadConfig({
+      isOpen: true,
+      target,
+      title,
+      initialValue,
+      allowDecimal: true,
+    });
+  };
+
+  const handleNumpadConfirm = (value: number) => {
+    switch(numpadConfig.target) {
+      case 'discount': setDiscountAmount(value); break;
+      case 'received': setAmountReceived(String(value)); break;
+      case 'splitCash': setCashAmountForSplit(value); break;
+      case 'splitCard': setCardAmountForSplit(value); break;
+    }
+    closeNumpad();
+  };
+  
+  const closeNumpad = () => {
+    setNumpadConfig({ isOpen: false, target: null, initialValue: 0, title: '', allowDecimal: true });
+  }
+
   const renderCustomizations = (item: OrderItem) => {
     const customizations = Object.values(item.customizations).flat();
     const customizationText = customizations.map(opt => opt.name).join(', ');
@@ -83,32 +121,35 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, order, onC
   };
 
   const isCashInvalid = paymentMethod === 'cash' && (amountReceived === '' || parseFloat(amountReceived) < finalTotal);
-  const isConfirmDisabled = isCashInvalid;
+  const totalEnteredForSplit = cashAmountForSplit + cardAmountForSplit;
+  const isSplitInvalid = paymentMethod === 'split' && totalEnteredForSplit.toFixed(2) !== finalTotal.toFixed(2);
+  const isConfirmDisabled = isCashInvalid || isSplitInvalid;
+  // Fix: Defined remainingForSplit to calculate the remaining amount for split payments.
+  const remainingForSplit = finalTotal - totalEnteredForSplit;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col text-gray-800">
-        <div className="p-5 border-b flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold text-indigo-700">{t('payment')}</h2>
-            <p className="text-gray-600">{t('order')} #{order.id} - {t('table')} {order.tableNumber}</p>
-          </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-800"><XMarkIcon className="w-7 h-7"/></button>
-        </div>
-
-        <div className="p-6 overflow-y-auto space-y-4">
-            <div className="bg-indigo-50 p-4 rounded-lg text-center">
-                <p className="text-lg text-indigo-800 font-medium">{t('payableAmount')}</p>
-                <p className="text-5xl font-bold text-indigo-700">{formatCurrency(finalTotal)}</p>
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col text-gray-800">
+          <div className="p-5 border-b flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-indigo-700">{t('payment')}</h2>
+              <p className="text-gray-600">{t('order')} #{order.id} - {t('table')} {order.tableNumber}</p>
             </div>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-800"><XMarkIcon className="w-7 h-7"/></button>
+          </div>
 
-              <>
+          <div className="p-6 overflow-y-auto space-y-4">
+              <div className="bg-indigo-50 p-4 rounded-lg text-center">
+                  <p className="text-lg text-indigo-800 font-medium">{t('payableAmount')}</p>
+                  <p className="text-5xl font-bold text-indigo-700">{formatCurrency(finalTotal)}</p>
+              </div>
                 <div className="border rounded-lg p-3 space-y-3">
                      <div>
                         <label htmlFor="discount-amount" className="font-medium">{t('discountAmount')}</label>
                         <button
                             type="button"
-                            onClick={() => setDiscountNumpadOpen(true)}
+                            onClick={() => openNumpad('discount', t('discountAmount'), discountAmount)}
                             className="w-full mt-1 p-2 border rounded-md text-center text-lg font-bold flex items-center justify-between hover:bg-gray-50"
                         >
                             <span>{formatCurrency(discountAmount)}</span>
@@ -116,20 +157,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, order, onC
                         </button>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setDiscountAmount(order.total / 2)}
-                            className="bg-orange-100 text-orange-700 font-semibold py-2 rounded-lg hover:bg-orange-200 transition"
-                        >
-                            50%
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setDiscountAmount(order.total)}
-                            className="bg-orange-100 text-orange-700 font-semibold py-2 rounded-lg hover:bg-orange-200 transition"
-                        >
-                            100% ({t('free')})
-                        </button>
+                        <button type="button" onClick={() => setDiscountAmount(order.total / 2)} className="bg-orange-100 text-orange-700 font-semibold py-2 rounded-lg hover:bg-orange-200 transition">50%</button>
+                        <button type="button" onClick={() => setDiscountAmount(order.total)} className="bg-orange-100 text-orange-700 font-semibold py-2 rounded-lg hover:bg-orange-200 transition">100% ({t('free')})</button>
                     </div>
                 </div>
                 
@@ -155,9 +184,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, order, onC
 
                 <div>
                     <h3 className="font-bold text-lg mb-3">{t('paymentMethod')}</h3>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                         <button onClick={() => setPaymentMethod('cash')} className={`p-4 rounded-lg font-semibold text-center transition-colors ${paymentMethod === 'cash' ? 'bg-indigo-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>{t('cash')}</button>
                         <button onClick={() => setPaymentMethod('card')} className={`p-4 rounded-lg font-semibold text-center transition-colors ${paymentMethod === 'card' ? 'bg-indigo-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>{t('card')}</button>
+                        <button onClick={() => setPaymentMethod('split')} className={`p-4 rounded-lg font-semibold text-center transition-colors ${paymentMethod === 'split' ? 'bg-indigo-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>{t('split')}</button>
                     </div>
                 </div>
                 
@@ -167,52 +197,71 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, order, onC
                             <label htmlFor="amount-received" className="block text-sm font-medium text-gray-700">{t('amountReceived')}</label>
                              <button
                                 type="button"
-                                onClick={() => setAmountReceivedNumpadOpen(true)}
+                                onClick={() => openNumpad('received', t('amountReceived'), parseFloat(amountReceived) || 0)}
                                 className="w-full mt-1 p-2 border rounded-md text-center text-lg font-bold flex items-center justify-between hover:bg-gray-50"
                             >
                                 <span>{formatCurrency(parseFloat(amountReceived) || 0)}</span>
                                 <CalculatorIcon className="w-5 h-5 text-gray-400" />
                             </button>
                         </div>
-
                         <div className="text-right text-lg font-semibold">
                             {t('change')}: <span className="text-green-600">{formatCurrency(change)}</span>
                         </div>
                     </div>
                 )}
-              </>
-        </div>
+                {paymentMethod === 'split' && (
+                  <div className="border rounded-lg p-3 space-y-3">
+                    <div>
+                      <label className="font-medium">{t('cashAmount')}</label>
+                       <button
+                          type="button"
+                          onClick={() => openNumpad('splitCash', t('cashAmount'), cashAmountForSplit)}
+                          className="w-full mt-1 p-2 border rounded-md text-center text-lg font-bold flex items-center justify-between hover:bg-gray-50"
+                        >
+                          <span>{formatCurrency(cashAmountForSplit)}</span>
+                          <CalculatorIcon className="w-5 h-5 text-gray-400" />
+                        </button>
+                    </div>
+                     <div>
+                      <label className="font-medium">{t('cardAmount')}</label>
+                       <button
+                          type="button"
+                          onClick={() => openNumpad('splitCard', t('cardAmount'), cardAmountForSplit)}
+                          className="w-full mt-1 p-2 border rounded-md text-center text-lg font-bold flex items-center justify-between hover:bg-gray-50"
+                        >
+                          <span>{formatCurrency(cardAmountForSplit)}</span>
+                          <CalculatorIcon className="w-5 h-5 text-gray-400" />
+                        </button>
+                    </div>
+                    <div className="text-right text-sm space-y-1 pt-2 border-t">
+                        <div className="flex justify-between"><span>{t('totalEntered')}:</span><span className="font-semibold">{formatCurrency(totalEnteredForSplit)}</span></div>
+                        <div className={`flex justify-between ${Math.round(remainingForSplit * 100) !== 0 ? 'text-red-600' : 'text-green-600'}`}><span>{t('remaining')}:</span><span className="font-bold">{formatCurrency(remainingForSplit)}</span></div>
+                    </div>
+                  </div>
+                )}
+          </div>
 
-        <div className="p-4 border-t mt-auto grid grid-cols-1 gap-3 bg-gray-50">
-           <button
-             onClick={handleConfirm}
-             disabled={isConfirmDisabled}
-             className="w-full bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition duration-300 disabled:bg-gray-400"
-           >
-             {t('confirmPayment')}
-           </button>
+          <div className="p-4 border-t mt-auto grid grid-cols-1 gap-3 bg-gray-50">
+            <button
+              onClick={handleConfirm}
+              disabled={isConfirmDisabled}
+              className="w-full bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition duration-300 disabled:bg-gray-400"
+            >
+              {t('confirmPayment')}
+            </button>
+          </div>
         </div>
       </div>
-
       <NumpadModal
-        isOpen={isDiscountNumpadOpen}
-        onClose={() => setDiscountNumpadOpen(false)}
-        onConfirm={(value) => setDiscountAmount(value)}
-        initialValue={discountAmount}
-        title={t('discountAmount')}
+        isOpen={numpadConfig.isOpen}
+        onClose={closeNumpad}
+        onConfirm={handleNumpadConfirm}
+        initialValue={numpadConfig.initialValue}
+        title={numpadConfig.title}
         t={t}
-        allowDecimal={true}
+        allowDecimal={numpadConfig.allowDecimal}
       />
-      <NumpadModal
-        isOpen={isAmountReceivedNumpadOpen}
-        onClose={() => setAmountReceivedNumpadOpen(false)}
-        onConfirm={(value) => setAmountReceived(String(value))}
-        initialValue={parseFloat(amountReceived) || 0}
-        title={t('amountReceived')}
-        t={t}
-        allowDecimal={true}
-      />
-    </div>
+    </>
   );
 };
 

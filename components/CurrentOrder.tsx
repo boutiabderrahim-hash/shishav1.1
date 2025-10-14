@@ -17,6 +17,7 @@ interface CurrentOrderProps {
   onRemoveItem: (itemId: string) => void;
   onSubmitOrder: () => void;
   onUpdateItemDiscount: (itemId: string, discount: number) => void;
+  onHoldOrder: () => void;
   t: (key: string) => string;
 }
 
@@ -31,6 +32,7 @@ const CurrentOrder: React.FC<CurrentOrderProps> = ({
   onRemoveItem,
   onSubmitOrder,
   onUpdateItemDiscount,
+  onHoldOrder,
   t,
 }) => {
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
@@ -168,6 +170,7 @@ const CurrentOrder: React.FC<CurrentOrderProps> = ({
           </div>
           <div className="grid grid-cols-2 gap-3">
              <button
+              onClick={onHoldOrder}
               className="w-full bg-orange-100 text-orange-700 font-bold py-3 px-4 rounded-lg hover:bg-orange-200 transition duration-300"
             >
               {t('holdOrder')}

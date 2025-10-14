@@ -1,12 +1,13 @@
 // Fix: Created the TableSelectionScreen component to allow users to select a table.
 import React from 'react';
-import { Order, ShiftReport, InventoryItem } from '../types';
+import { Order, ShiftReport, InventoryItem, HeldOrder } from '../types';
 import { UserGroupIcon, StarIcon, ExclamationTriangleIcon, KeyIcon } from './icons';
 
 type Area = 'Bar' | 'VIP' | 'Barra';
 
 interface TableSelectionScreenProps {
   orders: Order[];
+  heldOrders: HeldOrder[];
   activeShift: ShiftReport | undefined;
   onSelectTable: (tableId: number, area: Area) => void;
   onOpenTableActions: (order: Order) => void;
@@ -17,7 +18,7 @@ interface TableSelectionScreenProps {
   onOpenDrawer: () => void;
 }
 
-const TableSelectionScreen: React.FC<TableSelectionScreenProps> = ({ orders, activeShift, onSelectTable, onOpenTableActions, selectedArea, setSelectedArea, t, inventory, onOpenDrawer }) => {
+const TableSelectionScreen: React.FC<TableSelectionScreenProps> = ({ orders, heldOrders, activeShift, onSelectTable, onOpenTableActions, selectedArea, setSelectedArea, t, inventory, onOpenDrawer }) => {
   const areas: { name: Area; tables: number; icon: React.FC<any>; startId: number }[] = [
     { name: 'Bar', tables: 20, icon: UserGroupIcon, startId: 1 },
     { name: 'VIP', tables: 20, icon: StarIcon, startId: 21 },
@@ -35,8 +36,12 @@ const TableSelectionScreen: React.FC<TableSelectionScreenProps> = ({ orders, act
         o.status !== 'on_credit' &&
         activeShift && new Date(o.timestamp) >= new Date(activeShift.dayOpenedTimestamp)
     );
-    if (!order) return { status: 'available', order: null };
-    return { status: order.status, order: order };
+    if (order) return { status: order.status, order: order };
+    
+    const heldOrder = heldOrders.find(ho => ho.tableNumber === tableId && ho.area === area);
+    if (heldOrder) return { status: 'held', order: null };
+    
+    return { status: 'available', order: null };
   };
 
   interface TableButtonProps {
@@ -63,16 +68,20 @@ const TableSelectionScreen: React.FC<TableSelectionScreenProps> = ({ orders, act
             bgColor = 'bg-purple-500';
             statusText = t('readyToPay');
             break;
+        case 'held':
+            bgColor = 'bg-orange-500';
+            statusText = t('holdOrder');
+            break;
         case 'available':
         default:
            break;
     }
     
     const handleClick = () => {
-        if (status === 'available') {
-            onSelectTable(tableId, area);
-        } else if (order) {
+        if (order) {
             onOpenTableActions(order);
+        } else {
+            onSelectTable(tableId, area);
         }
     }
 

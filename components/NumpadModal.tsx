@@ -51,8 +51,9 @@ const NumpadModal: React.FC<NumpadModalProps> = ({
     '7', '8', '9',
     '4', '5', '6',
     '1', '2', '3',
-    allowDecimal ? '.' : 'C', '0', '⌫'
+    '0', '⌫'
   ];
+  if(allowDecimal) numpadKeys.push('.');
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60] p-4">
@@ -73,21 +74,28 @@ const NumpadModal: React.FC<NumpadModalProps> = ({
                 key={key}
                 onClick={() => {
                   if (key === '⌫') handleBackspace();
-                  else if (key === 'C') setValue('0');
                   else handleKeyPress(key);
                 }}
-                className="py-4 text-2xl font-semibold bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors active:bg-gray-400"
+                className={`py-4 text-2xl font-semibold bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors active:bg-gray-400 ${key === '.' ? 'col-span-3' : ''}`}
               >
                 {key}
               </button>
             ))}
           </div>
-          <button
-            onClick={handleConfirm}
-            className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-lg transition duration-300 text-lg active:bg-green-800"
-          >
-            {t('ok')}
-          </button>
+           <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setValue('0')}
+                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-lg transition duration-300 text-lg"
+              >
+                {t('clear')}
+              </button>
+              <button
+                onClick={handleConfirm}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition duration-300 text-lg"
+              >
+                {t('ok')}
+              </button>
+            </div>
         </div>
       </div>
     </div>

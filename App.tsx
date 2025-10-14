@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Order, OrderItem, MenuItem, Category, InventoryItem, Waiter, Language,
-  CustomizationOption, ShiftReport, Transaction, PaymentDetails, UserRole
+  CustomizationOption, ShiftReport, Transaction, PaymentDetails, UserRole, HeldOrder
 } from './types';
 import { mockMenuItems, INITIAL_CATEGORIES, mockInventory, mockWaiters } from './data/mockData';
 import { TAX_RATE } from './constants';
@@ -32,6 +32,7 @@ import WaiterFormModal from './components/admin/WaiterFormModal';
 import CreditManagement from './components/admin/CreditManagement';
 import WaiterShiftSummaryModal from './components/WaiterShiftSummaryModal';
 import TableActionsModal from './components/TableActionsModal';
+import HeldOrderActionsModal from './components/HeldOrderActionsModal';
 // Fix: Imported the missing 'SunIcon' to resolve a reference error.
 import { SunIcon } from './components/icons';
 
@@ -45,7 +46,11 @@ const translations = {
     without: 'sin', quantity: 'Cant.', discount: 'Dto.', orderNotes: 'Notas del Pedido',
     orderNotesPlaceholder: 'Ej: Alergias, peticiones especiales...', subtotal: 'Subtotal', tax: 'IVA',
     payableAmount: 'Total a Pagar', holdOrder: 'En Espera', proceed: 'Proceder', 
-    // Fix: Corrected invalid object key 'out ofStock' to 'outOfStock'.
+    orderHeldSuccessfully: 'El pedido se ha puesto en espera correctamente.',
+    heldOrderFound: 'Pedido en Espera Encontrado',
+    heldOrderMessage: 'Esta mesa tiene un pedido en espera. ¿Qué te gustaría hacer?',
+    resumeHeldOrder: 'Reanudar Pedido',
+    startNewOrder: 'Empezar Nuevo (descarta el anterior)',
     outOfStock: 'Agotado',
     active: 'Activos', paid: 'Pagados', all: 'Todos', noOrdersFound: 'No se encontraron pedidos.',
     table: 'Mesa', waiter: 'Camarero', pending: 'Pendiente', preparing: 'Preparando',
@@ -57,6 +62,9 @@ const translations = {
     removableIngredients: 'Ingredientes (quitar)', addToOrder: 'Añadir al Pedido', bar: 'Barra', vip: 'VIP',
     readyToPay: 'Listo para Pagar', payment: 'Pago', person: 'persona',
     viewOrderSummary: 'Ver Resumen del Pedido', paymentMethod: 'Método de Pago', cash: 'Efectivo', card: 'Tarjeta',
+    split: 'Dividir',
+    totalEntered: 'Total Ingresado',
+    remaining: 'Restante',
     amountReceived: 'Cantidad Recibida', change: 'Cambio', cashAmount: 'Monto en Efectivo',
     cardAmount: 'Monto en Tarjeta', confirmPayment: 'Confirmar Pago', orderPaidSuccessfully: '¡Pedido pagado con éxito!',
     printReceipt: 'Imprimir Recibo', close: 'Cerrar', enterPin: 'Introducir PIN', incorrectPin: 'PIN incorrecto',
@@ -133,6 +141,11 @@ const translations = {
     openCashDrawer: 'فتح الصندوق', currentOrder: 'الطلب الحالي', orderIsEmpty: 'الطلب فارغ.', without: 'بدون',
     quantity: 'الكمية', discount: 'خصم', orderNotes: 'ملاحظات الطلب', orderNotesPlaceholder: 'مثال: حساسيات، طلبات خاصة...',
     subtotal: 'المجموع الفرعي', tax: 'الضريبة', payableAmount: 'المبلغ المستحق', holdOrder: 'تعليق',
+    orderHeldSuccessfully: 'تم تعليق الطلب بنجاح.',
+    heldOrderFound: 'تم العثور على طلب معلق',
+    heldOrderMessage: 'هذه الطاولة لديها طلب معلق. ماذا تريد أن تفعل؟',
+    resumeHeldOrder: 'استئناف الطلب المعلق',
+    startNewOrder: 'بدء طلب جديد (يحذف القديم)',
     proceed: 'متابعة', outOfStock: 'نفذ من المخزون', active: 'نشطة', paid: 'مدفوعة', all: 'الكل',
     noOrdersFound: 'لا توجد طلبات.', table: 'طاولة', waiter: 'نادل', pending: 'قيد الانتظار',
     preparing: 'قيد التجهيز', ready: 'جاهز', on_credit: 'على الحساب', startPreparing: 'بدء التجهيز',
@@ -143,6 +156,9 @@ const translations = {
     removableIngredients: 'مكونات (للإزالة)', addToOrder: 'إضافة إلى الطلب', bar: 'البار', vip: 'VIP',
     readyToPay: 'جاهز للدفع', payment: 'الدفع', person: 'شخص',
     viewOrderSummary: 'عرض ملخص الطلب', paymentMethod: 'طريقة الدفع', cash: 'نقداً', card: 'بطاقة',
+    split: 'تقسيم',
+    totalEntered: 'المجموع المدخل',
+    remaining: 'المتبقي',
     amountReceived: 'المبلغ المستلم', change: 'الباقي', cashAmount: 'المبلغ النقدي',
     cardAmount: 'مبلغ البطاقة', confirmPayment: 'تأكيد الدفع', orderPaidSuccessfully: 'تم دفع الطلب بنجاح!',
     printReceipt: 'طباعة الإيصال', close: 'إغلاق', enterPin: 'أدخل الرقم السري', incorrectPin: 'رقم سري غير صحيح',
@@ -229,6 +245,7 @@ const App: React.FC = () => {
   const [waiters, setWaiters] = useLocalStorage<Waiter[]>('pos-waiters', mockWaiters);
   const [transactions, setTransactions] = useLocalStorage<Transaction[]>('pos-transactions', []);
   const [shifts, setShifts] = useLocalStorage<ShiftReport[]>('pos-shifts', []);
+  const [heldOrders, setHeldOrders] = useLocalStorage<HeldOrder[]>('pos-held-orders', []);
   
   // UI & Flow State
   const [view, setView] = useState<'waiter' | 'table' | 'pos' | 'credit' | 'admin' | 'day_closed' | 'manager_dashboard'>('waiter');
@@ -260,6 +277,8 @@ const App: React.FC = () => {
   const [shiftForWaiterSummary, setShiftForWaiterSummary] = useState<ShiftReport | null>(null);
   const [isTableActionsModalOpen, setTableActionsModalOpen] = useState(false);
   const [orderForTableActions, setOrderForTableActions] = useState<Order | null>(null);
+  const [isHeldOrderModalOpen, setHeldOrderModalOpen] = useState(false);
+  const [heldOrderForTable, setHeldOrderForTable] = useState<HeldOrder | null>(null);
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -343,9 +362,15 @@ const App: React.FC = () => {
   };
 
   const handleSelectTable = (tableId: number, area: Area) => {
-    setCurrentTable({ id: tableId, area });
-    setView('pos');
-    setPosView('order');
+    const heldOrder = heldOrders.find(o => o.tableNumber === tableId && o.area === area);
+    if (heldOrder) {
+      setHeldOrderForTable(heldOrder);
+      setHeldOrderModalOpen(true);
+    } else {
+      setCurrentTable({ id: tableId, area });
+      setView('pos');
+      setPosView('order');
+    }
   };
   
   const handleOpenTableActions = (order: Order) => {
@@ -476,6 +501,46 @@ const App: React.FC = () => {
     ));
   };
 
+  const handleHoldOrder = () => {
+    if (!currentTable || !currentWaiterId || currentOrderItems.length === 0) return;
+    const newHeldOrder: HeldOrder = {
+      tableNumber: currentTable.id,
+      area: currentTable.area,
+      waiterId: currentWaiterId,
+      items: currentOrderItems,
+      notes: currentOrderNotes,
+      timestamp: new Date(),
+    };
+    setHeldOrders(prev => [...prev.filter(o => o.tableNumber !== currentTable!.id || o.area !== currentTable!.area), newHeldOrder]);
+    setCurrentOrderItems([]);
+    setCurrentOrderNotes('');
+    setView('table');
+    setNotification({ title: t('holdOrder'), message: t('orderHeldSuccessfully') });
+  };
+
+  const handleResumeOrder = (heldOrder: HeldOrder) => {
+    setCurrentTable({ id: heldOrder.tableNumber, area: heldOrder.area });
+    setCurrentOrderItems(heldOrder.items);
+    setCurrentOrderNotes(heldOrder.notes || '');
+    setCurrentWaiterId(heldOrder.waiterId);
+    setHeldOrders(prev => prev.filter(o => o.tableNumber !== heldOrder.tableNumber || o.area !== heldOrder.area));
+    setHeldOrderModalOpen(false);
+    setHeldOrderForTable(null);
+    setView('pos');
+    setPosView('order');
+  };
+
+  const handleStartNewOverHeld = (heldOrder: HeldOrder) => {
+    setHeldOrders(prev => prev.filter(o => o.tableNumber !== heldOrder.tableNumber || o.area !== heldOrder.area));
+    setCurrentTable({ id: heldOrder.tableNumber, area: heldOrder.area });
+    setCurrentOrderItems([]);
+    setCurrentOrderNotes('');
+    setHeldOrderModalOpen(false);
+    setHeldOrderForTable(null);
+    setView('pos');
+    setPosView('order');
+  };
+
   const handleSubmitOrder = () => {
     if (!currentTable || !currentWaiterId || currentOrderItems.length === 0) return;
 
@@ -545,23 +610,31 @@ const App: React.FC = () => {
      if (activeShift) {
         let cashSale = 0;
         let cardSale = 0;
-        let paymentTransactions: Transaction[] = [];
+        const paymentTransactions: Transaction[] = [];
 
         if (details.method === 'card') {
           cardSale = finalTotal;
         } else if (details.method === 'split') {
             cashSale = details.cashAmount;
             cardSale = details.cardAmount;
-        } else {
+        } else { // cash
             cashSale = finalTotal;
         }
         
         if (cardSale > 0) {
-            const totalCardPortion = details.method === 'split' ? details.cardAmount : finalTotal;
-            const taxOnCardPortion = totalCardPortion - (totalCardPortion / (1 + TAX_RATE));
+            const taxOnCardPortion = cardSale - (cardSale / (1 + TAX_RATE));
             paymentTransactions.push({
                 id: `tx-${Date.now()}-card`, type: 'sale', paymentMethod: 'card', orderId,
-                amount: totalCardPortion, tax: taxOnCardPortion, description: `Order #${orderId} (Card)`,
+                amount: cardSale, tax: taxOnCardPortion, description: `Order #${orderId} (Card)`,
+                timestamp: new Date(), taxable: true
+            });
+        }
+        
+        if (cashSale > 0) {
+            const taxOnCashPortion = cashSale - (cashSale / (1 + TAX_RATE));
+            paymentTransactions.push({
+                id: `tx-${Date.now()}-cash`, type: 'sale', paymentMethod: 'cash', orderId,
+                amount: cashSale, tax: taxOnCashPortion, description: `Order #${orderId} (Cash)`,
                 timestamp: new Date(), taxable: true
             });
         }
@@ -779,7 +852,7 @@ const App: React.FC = () => {
   const renderMainContent = () => {
     switch(view) {
         case 'table':
-            return <TableSelectionScreen orders={orders} onSelectTable={handleSelectTable} onOpenTableActions={handleOpenTableActions} selectedArea={selectedArea} setSelectedArea={setSelectedArea} t={t} activeShift={activeShift} inventory={inventory} onOpenDrawer={handleOpenDrawer} />;
+            return <TableSelectionScreen orders={orders} onSelectTable={handleSelectTable} onOpenTableActions={handleOpenTableActions} selectedArea={selectedArea} setSelectedArea={setSelectedArea} t={t} activeShift={activeShift} inventory={inventory} onOpenDrawer={handleOpenDrawer} heldOrders={heldOrders} />;
         case 'pos':
             if (posView === 'order') {
                 return (
@@ -790,7 +863,7 @@ const App: React.FC = () => {
                                 <Menu menuItems={menuItems} categories={categories} inventory={inventory} selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} onSelectItem={handleSelectItem} onCustomizeItem={handleCustomizeItem} searchTerm={searchTerm} t={t} />
                             </div>
                             <div className="w-1/3 h-full border-l border-gray-200">
-                                <CurrentOrder currentOrderItems={currentOrderItems} subtotal={subtotal} tax={tax} total={total} notes={currentOrderNotes} onUpdateNotes={setCurrentOrderNotes} onUpdateQuantity={handleUpdateQuantity} onRemoveItem={handleRemoveItem} onSubmitOrder={handleSubmitOrder} onUpdateItemDiscount={handleUpdateItemDiscount} t={t} />
+                                <CurrentOrder currentOrderItems={currentOrderItems} subtotal={subtotal} tax={tax} total={total} notes={currentOrderNotes} onUpdateNotes={setCurrentOrderNotes} onUpdateQuantity={handleUpdateQuantity} onRemoveItem={handleRemoveItem} onSubmitOrder={handleSubmitOrder} onUpdateItemDiscount={handleUpdateItemDiscount} onHoldOrder={handleHoldOrder} t={t} />
                             </div>
                         </div>
                     </>
@@ -837,7 +910,7 @@ const App: React.FC = () => {
               currentUserRole={currentUserRole}
             />;
         default:
-            return <TableSelectionScreen orders={orders} onSelectTable={handleSelectTable} onOpenTableActions={handleOpenTableActions} selectedArea={selectedArea} setSelectedArea={setSelectedArea} t={t} activeShift={activeShift} inventory={inventory} onOpenDrawer={handleOpenDrawer} />;
+            return <TableSelectionScreen orders={orders} onSelectTable={handleSelectTable} onOpenTableActions={handleOpenTableActions} selectedArea={selectedArea} setSelectedArea={setSelectedArea} t={t} activeShift={activeShift} inventory={inventory} onOpenDrawer={handleOpenDrawer} heldOrders={heldOrders} />;
     }
   };
 
@@ -891,6 +964,14 @@ const App: React.FC = () => {
         order={orderForTableActions}
         onAddToOrder={handleAddToExistingOrder}
         onGoToPayment={handleGoToPaymentFromActions}
+        t={t}
+      />
+      <HeldOrderActionsModal
+        isOpen={isHeldOrderModalOpen}
+        onClose={() => setHeldOrderModalOpen(false)}
+        heldOrder={heldOrderForTable}
+        onResume={handleResumeOrder}
+        onStartNew={handleStartNewOverHeld}
         t={t}
       />
       <ConfirmationModal isOpen={isConfirmationModalOpen} onClose={() => setConfirmationModalOpen(false)} {...confirmationProps} t={t} lang={lang} />
