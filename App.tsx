@@ -124,6 +124,8 @@ const translations = {
     enterCustomerName: 'Introducir Nombre del Cliente',
     language: 'Idioma',
     space: 'Espacio',
+    paymentOnMobileDisabledTitle: 'Función no disponible',
+    paymentOnMobileDisabledMessage: 'El pago no está permitido en dispositivos móviles por razones de seguridad.',
   },
   ar: { 
     welcome: 'أهلاً بك', selectWaiterToBegin: 'اختر نادلاً للبدء', newOrder: 'طلب جديد', orders: 'الطلبات',
@@ -208,6 +210,8 @@ const translations = {
     enterCustomerName: 'أدخل اسم العميل',
     language: 'لغة',
     space: 'مسافة',
+    paymentOnMobileDisabledTitle: 'الوظيفة غير متاحة',
+    paymentOnMobileDisabledMessage: 'الدفع غير مسموح به على الأجهزة المحمولة لأسباب أمنية.',
   }
 };
 
@@ -515,6 +519,13 @@ const App: React.FC = () => {
   };
   
   const handlePayOrder = (order: Order) => {
+    if (window.innerWidth < 768) { // 768px is a common tablet breakpoint
+      setNotification({
+        title: t('paymentOnMobileDisabledTitle'),
+        message: t('paymentOnMobileDisabledMessage'),
+      });
+      return;
+    }
     setOrderToPay(order);
     setPaymentModalOpen(true);
   };
