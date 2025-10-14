@@ -102,7 +102,7 @@ const TableSelectionScreen: React.FC<TableSelectionScreenProps> = ({ orders, act
             <div className="flex-1 flex justify-end">
                 <button
                     onClick={onOpenDrawer}
-                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 px-8 rounded-lg flex items-center gap-3 text-lg transition-transform duration-200 ease-in-out hover:scale-105 shadow-lg"
+                    className="hidden md:flex bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 px-8 rounded-lg items-center gap-3 text-lg transition-transform duration-200 ease-in-out hover:scale-105 shadow-lg"
                     aria-label={t('openCashDrawer')}
                 >
                     <KeyIcon className="w-8 h-8" />

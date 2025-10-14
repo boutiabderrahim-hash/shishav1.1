@@ -28,7 +28,7 @@ const Header: React.FC<HeaderProps> = ({ lang, toggleLang, searchTerm, setSearch
              <button
                 onClick={onOpenDrawer}
                 title={t('openCashDrawer')}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold p-4 rounded-xl transition duration-300"
+                className="hidden md:block bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold p-4 rounded-xl transition duration-300"
             >
                 <KeyIcon className="w-7 h-7" />
             </button>
