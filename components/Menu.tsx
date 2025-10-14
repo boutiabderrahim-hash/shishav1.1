@@ -44,7 +44,7 @@ const Menu: React.FC<MenuProps> = ({ menuItems, categories, inventory, selectedC
 
       {/* Menu Items */}
       <div className="flex-grow overflow-y-auto p-4 sm:p-6 lg:p-8">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        <div className="space-y-4 sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 sm:gap-6 sm:space-y-0">
           {filteredItems.map(item => {
              const stockItem = inventory.find(i => i.id === item.stockItemId);
              const isOutOfStock = stockItem ? stockItem.quantity <= 0 : false;
@@ -53,11 +53,11 @@ const Menu: React.FC<MenuProps> = ({ menuItems, categories, inventory, selectedC
             <div
               key={item.id}
               onClick={() => !isOutOfStock && onSelectItem(item)}
-              className={`bg-white rounded-lg shadow-sm cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-col text-center relative ${isOutOfStock ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`bg-white rounded-lg shadow-sm cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-row sm:flex-col text-left sm:text-center relative ${isOutOfStock ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
                 {isOutOfStock && <div className="absolute inset-0 bg-gray-400 bg-opacity-50 flex items-center justify-center rounded-lg"><span className="text-white font-bold bg-black bg-opacity-60 px-2 py-1 rounded">{t('outOfStock')}</span></div>}
-              <img src={item.imageUrl} alt={item.name} className="w-full h-32 object-cover rounded-t-lg" />
-              <div className="p-3 flex-grow flex flex-col justify-between">
+              <img src={item.imageUrl} alt={item.name} className="w-24 h-24 sm:w-full sm:h-32 object-cover rounded-l-lg sm:rounded-bl-none sm:rounded-t-lg" />
+              <div className="p-3 flex-1 flex flex-col justify-center sm:justify-between">
                 <h3 className="font-semibold text-gray-800 text-sm leading-tight">{item.name}</h3>
                 <p className="text-gray-800 font-bold mt-2">{formatCurrency(item.price)}</p>
               </div>
